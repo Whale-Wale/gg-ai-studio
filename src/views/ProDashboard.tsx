@@ -20,8 +20,17 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
   const [alerts, setAlerts] = useState<HealthAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+
   useEffect(() => {
     if (!profile?.tenantId) return;
+
+    // Fetch existing users to link as patients
+    const uQuery = query(collection(db, 'users'), where('tenantId', '==', profile.tenantId), where('role', '==', 'User'));
+    const unsubscribeUsers = onSnapshot(uQuery, (snapshot) => {
+      setAvailableUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
     const pQuery = query(collection(db, 'patients'), where('tenantId', '==', profile.tenantId));
     const unsubscribePatients = onSnapshot(pQuery, (snapshot) => {
@@ -42,6 +51,7 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     });
 
     return () => {
+      unsubscribeUsers();
       unsubscribePatients();
       unsubscribeAlerts();
     };
@@ -65,18 +75,25 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     });
   };
 
-  const addMockPatient = async () => {
+  const linkUserAsPatient = async (user: any) => {
     if (!profile?.tenantId) return;
-    const names = ['Tran Van B', 'Le Thi C', 'Pham Minh D', 'Nguyen Thi E'];
-    const randomName = names[Math.floor(Math.random() * names.length)];
+    
+    // Check if patient already exists for this email
+    const existing = patients.find(p => p.email === user.email);
+    if (existing) {
+      alert(language === 'en' ? 'User is already a patient' : 'Người dùng này đã là bệnh nhân');
+      return;
+    }
+
     const pRef = await addDoc(collection(db, 'patients'), {
-      name: randomName,
-      dob: '1985-08-20',
+      name: user.name || 'Unnamed',
+      email: user.email,
+      dob: 'Unknown',
       tenantId: profile.tenantId,
-      status: Math.random() > 0.8 ? 'Critical' : 'Normal',
+      status: 'Normal',
       professionalId: profile.uid,
-      isTest: true,
-      testCreatedAt: Date.now()
+      userId: user.id,
+      createdAt: new Date().toISOString()
     });
 
     const now = new Date();
@@ -91,6 +108,8 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
          isTest: true
        });
     }
+
+    setShowAddModal(false);
   };
 
   const stats = [
@@ -115,11 +134,11 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
             {language === 'en' ? 'Test Alert' : 'Thử cảnh báo'}
           </button>
           <button 
-            onClick={addMockPatient}
+            onClick={() => setShowAddModal(true)}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-accent-teal text-black px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all text-xs uppercase tracking-widest"
           >
             <Users size={20} />
-            {language === 'en' ? 'Mock Patient' : 'Thêm bệnh nhân'}
+            {language === 'en' ? 'Add Patient' : 'Thêm bệnh nhân'}
           </button>
         </div>
       </div>
@@ -232,6 +251,58 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
           </div>
         </div>
       </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="glass p-8 rounded-[32px] w-full max-w-lg shadow-2xl border border-accent-teal/20">
+            <h3 className="text-sm font-bold uppercase tracking-[0.2em] mb-4 text-accent-teal">
+              {language === 'en' ? 'Link User as Patient' : 'Liên kết người dùng thành bệnh nhân'}
+            </h3>
+            <p className="text-xs uppercase tracking-widest opacity-50 mb-6">
+              {language === 'en' ? 'Select an existing User account to monitor.' : 'Chọn tài khoản Bệnh nhân có sẵn để theo dõi.'}
+            </p>
+            
+            <div className="max-h-[50vh] overflow-y-auto space-y-3 mb-8 pr-2">
+              {availableUsers.length === 0 ? (
+                <div className="p-4 text-center text-white/30 text-xs tracking-widest uppercase italic">
+                  {language === 'en' ? 'No users available' : 'Không có người dùng nào'}
+                </div>
+              ) : availableUsers.map(user => {
+                const isAlreadyPatient = patients.some(p => p.email === user.email);
+                return (
+                  <div key={user.id} className="p-4 glass rounded-2xl border border-white/5 flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-sm">{user.name || 'Unnamed'}</h4>
+                      <p className="text-[10px] opacity-60 uppercase">{user.email}</p>
+                    </div>
+                    {isAlreadyPatient ? (
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        {language === 'en' ? 'Linked' : 'Đã liên kết'}
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => linkUserAsPatient(user)}
+                        className="px-4 py-2 bg-white/10 hover:bg-accent-teal hover:text-black rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                      >
+                        {language === 'en' ? 'Select' : 'Chọn'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="px-6 py-3 border border-white/10 hover:bg-white/5 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all"
+              >
+                {language === 'en' ? 'Close' : 'Đóng'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
