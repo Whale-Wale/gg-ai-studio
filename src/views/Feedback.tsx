@@ -37,23 +37,30 @@ const Feedback: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
   }, [profile]);
 
   useEffect(() => {
-    if (!profile?.id || !selectedUser?.id) return;
+    if (!profile?.uid || !selectedUser?.id) return;
 
-    // Fetch messages between profile.id and selectedUser.id
+    // Fetch messages between profile.uid and selectedUser.id
     // To do this simply in Firestore without complex composite indexes, we can fetch messages where tenantId = profile.tenantId
     // and filter in memory, or use a composite conversation ID limit.
     // Let's use a conversation ID: smallId_largeId
-    const convId = [profile.id, selectedUser.id].sort().join('_');
+    const convId = [profile.uid, selectedUser.id].sort().join('_');
     
     const q = query(
       collection(db, 'feedbacks'),
-      where('conversationId', '==', convId),
-      orderBy('createdAt', 'asc')
+      where('conversationId', '==', convId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      data.sort((a: any, b: any) => {
+        const t1 = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const t2 = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return t1 - t2;
+      });
       setMessages(data);
+    }, (error: any) => {
+      console.error("Feedback snapshot error: ", error);
+      alert("Chat error: " + error.message);
     });
 
     return () => unsubscribe();
@@ -66,12 +73,12 @@ const Feedback: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedUser || !profile) return;
     
-    const convId = [profile.id, selectedUser.id].sort().join('_');
+    const convId = [profile.uid, selectedUser.id].sort().join('_');
     
     try {
       await addDoc(collection(db, 'feedbacks'), {
         conversationId: convId,
-        senderId: profile.id,
+        senderId: profile.uid,
         receiverId: selectedUser.id,
         content: newMessage.trim(),
         createdAt: serverTimestamp(),
@@ -138,7 +145,7 @@ const Feedback: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
                 </div>
               )}
               {messages.map((msg) => {
-                const isMe = msg.senderId === profile?.id;
+                const isMe = msg.senderId === profile?.uid;
                 return (
                   <div key={msg.id} className={`flex gap-4 ${isMe ? 'flex-row-reverse' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isMe ? 'bg-accent-teal text-black' : 'bg-white/10 text-white'}`}>

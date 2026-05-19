@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { initializeApp } from 'firebase/app';
@@ -21,8 +21,16 @@ const UserManagement: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // PlatformAdmin sees all, Professional might see only their tenant
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+    let q;
+    if (profile?.role === 'PlatformAdmin') {
+      q = collection(db, 'users');
+    } else if (profile?.tenantId) {
+      q = query(collection(db, 'users'), where('tenantId', '==', profile.tenantId));
+    } else {
+      return; // Wait for tenantId
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUsers(data);
     });

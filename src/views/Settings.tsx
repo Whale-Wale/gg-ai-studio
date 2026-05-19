@@ -8,6 +8,7 @@ import { Settings as SettingsIcon, User, Bell, Shield, Smartphone, Save } from '
 const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
   const { profile } = useAuth();
   const [name, setName] = useState(profile?.name || '');
+  const [tenantId, setTenantId] = useState(profile?.tenantId || '');
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [activeSection, setActiveSection] = useState<'profile' | 'notifications' | 'security' | 'devices'>('profile');
@@ -17,7 +18,8 @@ const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
     setLoading(true);
     try {
       await updateDoc(doc(db, 'users', profile.uid), {
-        name
+        name,
+        tenantId
       });
       alert(language === 'en' ? 'Settings saved successfully' : 'Đã lưu cài đặt thành công');
     } catch (e) {
@@ -137,12 +139,12 @@ const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
                     </label>
                     <input 
                       type="text" 
-                      value={profile?.tenantId || ''}
-                      disabled
-                      className="w-full px-4 py-3 bg-black/20 border border-white/5 rounded-xl outline-none text-white/50 text-sm cursor-not-allowed"
+                      value={tenantId}
+                      onChange={(e) => setTenantId(e.target.value)}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
                     />
                     <p className="text-[10px] text-white/30 mt-2 italic">
-                      {language === 'en' ? 'To change your tenant ID, please contact the administrator.' : 'Để đổi tổ chức, vui lòng liên hệ quản trị viên.'}
+                      {language === 'en' ? 'You can freely change your clinic affiliation.' : 'Bạn có thể tự do thay đổi mã phòng khám/tổ chức.'}
                     </p>
                   </div>
                 </div>

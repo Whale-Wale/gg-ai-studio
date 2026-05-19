@@ -51,7 +51,7 @@ service cloud.firestore {
     }
 
     match /feedbacks/{feedbackId} {
-      allow read: if isSignedIn() && (resource.data.tenantId == getUserData().tenantId);
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && (request.resource.data.tenantId == getUserData().tenantId);
     }
 
