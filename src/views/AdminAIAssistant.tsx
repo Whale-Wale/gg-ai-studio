@@ -1,10 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, User } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 import { useAuth } from '../contexts/AuthContext';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-let chatSession: any = null;
 
 const AdminAIAssistant: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
   const { profile } = useAuth();
@@ -16,32 +12,29 @@ const AdminAIAssistant: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Initialize chat session
-    chatSession = ai.chats.create({
-      model: "gemini-3-flash-preview",
-      config: {
-        systemInstruction: language === 'en' 
-          ? "You are an AI assistant for a global healthcare SaaS platform admin. You help them analyze data, manage tenants (hospitals/clinics), and provide technical advice. Keep answers professional and concise."
-          : "Bạn là trợ lý AI cho quản trị viên hệ thống nền tảng SaaS y tế. Bạn giúp họ phân tích dữ liệu, quản lý tổ chức (phòng khám/bệnh viện), và cung cấp tư vấn kỹ thuật. Giữ câu trả lời chuyên nghiệp và ngắn gọn."
-      }
-    });
-  }, [language]);
-
-  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || loading || !chatSession) return;
+    if (!input.trim() || loading) return;
     
     const userMsg = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    const newHistory = [...messages, { role: 'user' as const, text: userMsg }];
+    setMessages(newHistory);
     setLoading(true);
 
     try {
-      const response = await chatSession.sendMessage({ message: userMsg });
-      setMessages(prev => [...prev, { role: 'model', text: response.text || '' }]);
+      const response = await fetch('/api/gemini/admin-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history: messages.slice(1), message: userMsg, language })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: 'model', text: data.text || '' }]);
     } catch (e: any) {
       console.error(e);
       setMessages(prev => [...prev, { role: 'model', text: language === 'en' ? 'Sorry, an error occurred.' : 'Xin lỗi, đã xảy ra lỗi.' }]);

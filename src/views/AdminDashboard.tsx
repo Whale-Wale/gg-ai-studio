@@ -20,6 +20,7 @@ const mockSystemData = [
 
 const AdminDashboard: React.FC<{ language: 'en' | 'vi', activeTab?: string }> = ({ language, activeTab = 'dashboard' }) => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [usersCount, setUsersCount] = useState<{patients: number, doctors: number}>({patients: 0, doctors: 0});
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,8 +28,20 @@ const AdminDashboard: React.FC<{ language: 'en' | 'vi', activeTab?: string }> = 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'tenants'), (snapshot) => {
       setTenants(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant)));
-    });
-    return unsubscribe;
+    }, (error) => console.error("Tenants snapshot error:", error.message));
+    
+    // Also fetch users to count patients and doctors
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+       const docs = snapshot.docs.map(doc => doc.data());
+       const patients = docs.filter(u => u.role === 'User').length;
+       const doctors = docs.filter(u => u.role === 'Professional').length;
+       setUsersCount({ patients, doctors });
+    }, (error) => console.error("Users count snapshot error:", error.message));
+
+    return () => {
+      unsubscribe();
+      unsubscribeUsers();
+    };
   }, []);
 
   const addTenant = async () => {
@@ -95,18 +108,30 @@ const AdminDashboard: React.FC<{ language: 'en' | 'vi', activeTab?: string }> = 
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-8">
+          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all col-span-2">
             <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{language === 'en' ? 'Total Tenants' : 'Tổng tổ chức'}</h3>
-            <p className="text-3xl font-light font-mono text-white mt-2">{tenants.length}</p>
+            <div className="flex items-end gap-3 mt-2">
+               <p className="text-3xl font-light font-mono text-white leading-none">{tenants.length}</p>
+               <span className="text-xs font-bold text-accent-teal uppercase tracking-widest leading-none mb-1 text-emerald-500">{activeCount} {language === 'en' ? 'Active' : 'Hoạt động'}</span>
+            </div>
           </div>
-          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{language === 'en' ? 'Active Tenants' : 'Đang hoạt động'}</h3>
-            <p className="text-3xl font-light font-mono text-accent-teal mt-2">{activeCount}</p>
+          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all col-span-2">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{language === 'en' ? 'Total Patients' : 'Tổng Bệnh nhân'}</h3>
+            <p className="text-3xl font-light font-mono text-white mt-2">{usersCount.patients}</p>
           </div>
-          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{language === 'en' ? 'Total Users' : 'Tổng người dùng'}</h3>
-            <p className="text-3xl font-light font-mono text-white mt-2">{tenants.reduce((sum, t) => sum + (t.userCount || 0), 0)}</p>
+          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all col-span-2">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{language === 'en' ? 'Total Doctors' : 'Tổng Bác sĩ'}</h3>
+            <p className="text-3xl font-light font-mono text-white mt-2">{usersCount.doctors}</p>
+          </div>
+          <div className="glass p-6 rounded-3xl border border-white/5 shadow-sm hover:shadow-md transition-all col-span-2 lg:col-span-6 flex items-center justify-between">
+            <div>
+               <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-40">{language === 'en' ? 'Video Calls Today' : 'Lượt Video Call hôm nay'}</h3>
+               <p className="text-3xl font-light font-mono text-white mt-2">1,248</p>
+            </div>
+            <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center text-emerald-500 bg-emerald-500/10">
+               <Activity size={24} />
+            </div>
           </div>
         </div>
 

@@ -2,5 +2,5 @@
   "name": "HealthChain: Multi-tenant Health Platform",
   "description": "A comprehensive SaaS health monitoring system with real-time analytics, AI-powered summaries, and multi-tenant management for clinics and gyms.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

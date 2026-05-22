@@ -46,7 +46,7 @@ const UserDashboard: React.FC<{ language: 'en' | 'vi', activeTab?: string }> = (
     );
     const unsubscribeRecords = onSnapshot(rQuery, (snapshot) => {
       setRecords(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HealthRecord)).reverse());
-    });
+    }, (error) => console.error("Records snapshot error:", error.message));
 
     const sQuery = query(
       collection(db, 'patients', profile.patientId, 'summaries'),
@@ -57,7 +57,7 @@ const UserDashboard: React.FC<{ language: 'en' | 'vi', activeTab?: string }> = (
       if (!snapshot.empty) {
         setSummary({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as AISummary);
       }
-    });
+    }, (error) => console.error("Summary snapshot error:", error.message));
 
     return () => {
       unsubscribeRecords();

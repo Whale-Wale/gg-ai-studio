@@ -11,20 +11,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function existsUser() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function isPlatformAdmin() {
-      return isSignedIn() && getUserData().role == 'PlatformAdmin';
+      return isSignedIn() && existsUser() && getUserData().role == 'PlatformAdmin';
     }
 
     function isProfessionalOfTenant(tenantId) {
-      return isSignedIn() && getUserData().role == 'Professional' && getUserData().tenantId == tenantId;
+      return isSignedIn() && existsUser() && getUserData().role == 'Professional' && getUserData().tenantId == tenantId;
     }
 
     function isUserOfTenant(tenantId) {
-      return isSignedIn() && getUserData().tenantId == tenantId;
+      return isSignedIn() && existsUser() && getUserData().tenantId == tenantId;
     }
 
     function isOwner(userId) {
@@ -47,12 +51,18 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && (isPlatformAdmin() || isOwner(userId) || (getUserData().tenantId == resource.data.tenantId));
       allow create: if isSignedIn(); // Initial profile creation
-      allow update: if isSignedIn() && (isPlatformAdmin() || isOwner(userId));
+      allow update: if isSignedIn() && (isPlatformAdmin() || isOwner(userId) || (getUserData().role == 'Professional' && getUserData().tenantId == resource.data.tenantId));
+      allow delete: if isSignedIn() && (isPlatformAdmin() || isOwner(userId) || (getUserData().role == 'Professional' && getUserData().tenantId == resource.data.tenantId));
     }
 
     match /feedbacks/{feedbackId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && (request.resource.data.tenantId == getUserData().tenantId);
+    }
+
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isPlatformAdmin();
     }
 
     match /patients/{patientId} {
@@ -72,10 +82,7 @@ service cloud.firestore {
     }
 
     match /alerts/{alertId} {
-      allow read: if isSignedIn() && (isPlatformAdmin() || isProfessionalOfTenant(resource.data.tenantId) || resource.data.isTest == true);
-      allow create: if isSignedIn(); // Simulation
-      allow update: if isSignedIn() && (isPlatformAdmin() || isProfessionalOfTenant(resource.data.tenantId));
-      allow delete: if isSignedIn() && resource.data.isTest == true;
+      allow read, write: if isSignedIn();
     }
   }
 }

@@ -3,23 +3,33 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { Settings as SettingsIcon, User, Bell, Shield, Smartphone, Save } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Smartphone, Save, Monitor } from 'lucide-react';
 
 const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
-  const { profile } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const [name, setName] = useState(profile?.name || '');
+  const [email, setEmail] = useState(profile?.email || '');
   const [tenantId, setTenantId] = useState(profile?.tenantId || '');
+  const [dob, setDob] = useState(profile?.dob || '');
+  const [phone, setPhone] = useState(profile?.phone || '');
+  const [gender, setGender] = useState(profile?.gender || 'Other');
+  const [theme, setTheme] = useState(profile?.theme || 'dark');
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState(true);
-  const [activeSection, setActiveSection] = useState<'profile' | 'notifications' | 'security' | 'devices'>('profile');
+  const [activeSection, setActiveSection] = useState<'profile' | 'notifications' | 'security' | 'devices' | 'appearance'>('profile');
 
   const handleSave = async () => {
     if (!profile?.uid) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'users', profile.uid), {
+      await updateProfile({
         name,
-        tenantId
+        email,
+        tenantId,
+        dob,
+        phone,
+        gender,
+        theme
       });
       alert(language === 'en' ? 'Settings saved successfully' : 'Đã lưu cài đặt thành công');
     } catch (e) {
@@ -80,6 +90,18 @@ const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
             <Shield size={18} />
             <span className="text-xs font-bold uppercase tracking-widest">{language === 'en' ? 'Security' : 'Bảo mật'}</span>
           </button>
+          <button 
+            onClick={() => setActiveSection('appearance')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+              activeSection === 'appearance' 
+                ? 'glass border-l-2 border-accent-teal text-accent-teal' 
+                : 'hover:bg-white/5 text-white/40 hover:text-white'
+            }`}
+          >
+            <Monitor size={18} />
+            <span className="text-xs font-bold uppercase tracking-widest">{language === 'en' ? 'Appearance' : 'Giao diện'}</span>
+          </button>
+          
           {profile?.role === 'User' && (
             <button 
               onClick={() => setActiveSection('devices')}
@@ -109,28 +131,72 @@ const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
                 </h3>
                 
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
-                      {language === 'en' ? 'Full Name' : 'Họ và tên'}
-                    </label>
-                    <input 
-                      type="text" 
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
+                        {language === 'en' ? 'Full Name' : 'Họ và tên'}
+                      </label>
+                      <input 
+                        type="text" 
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
+                        {language === 'en' ? 'Email Address' : 'Địa chỉ Email'}
+                      </label>
+                      <input 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
-                      {language === 'en' ? 'Email Address' : 'Địa chỉ Email'}
-                    </label>
-                    <input 
-                      type="email" 
-                      value={profile?.email || ''}
-                      disabled
-                      className="w-full px-4 py-3 bg-black/20 border border-white/5 rounded-xl outline-none text-white/50 text-sm cursor-not-allowed"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
+                        {language === 'en' ? 'Date of Birth' : 'Ngày sinh'}
+                      </label>
+                      <input 
+                        type="date" 
+                        value={dob}
+                        onChange={(e) => setDob(e.target.value)}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
+                        style={{ colorScheme: 'dark' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
+                        {language === 'en' ? 'Phone Number' : 'Số điện thoại'}
+                      </label>
+                      <input 
+                        type="tel" 
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
+                        {language === 'en' ? 'Gender' : 'Giới tính'}
+                      </label>
+                      <select 
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:border-accent-teal/50 transition-all text-sm"
+                      >
+                        <option value="Male" className="bg-slate-900">{language === 'en' ? 'Male' : 'Nam'}</option>
+                        <option value="Female" className="bg-slate-900">{language === 'en' ? 'Female' : 'Nữ'}</option>
+                        <option value="Other" className="bg-slate-900">{language === 'en' ? 'Other' : 'Khác'}</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
@@ -259,6 +325,61 @@ const Settings: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
                    className="px-4 py-2 border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
                 >
                   {language === 'en' ? 'Reset Data' : 'Xóa Dữ Liệu'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === 'appearance' && (
+            <motion.div 
+               initial={{ opacity: 0, y: 10 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="glass p-8 rounded-3xl space-y-6"
+            >
+              <h3 className="text-sm font-bold uppercase tracking-widest border-b border-white/5 pb-4 mb-6">
+                {language === 'en' ? 'Appearance Settings' : 'Cài đặt giao diện'}
+              </h3>
+              
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold mb-4">{language === 'en' ? 'UI Theme' : 'Chủ đề hệ thống'}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setTheme('dark')}
+                      className={`flex flex-col items-center justify-center p-6 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-accent-teal/10 border-accent-teal text-accent-teal' : 'bg-dark-bg border-white/10 text-white/50 hover:border-white/20'}`}
+                    >
+                      <div className="w-16 h-12 bg-slate-900 rounded-lg mb-3 border border-slate-700 flex flex-col gap-1 p-2">
+                        <div className="w-full h-2 bg-slate-800 rounded"></div>
+                        <div className="w-3/4 h-2 bg-slate-800 rounded"></div>
+                      </div>
+                      <span className="text-sm font-bold">{language === 'en' ? 'Dark Mode' : 'Chế độ Tối'}</span>
+                    </button>
+                    <button 
+                      onClick={() => setTheme('light')}
+                      className={`flex flex-col items-center justify-center p-6 rounded-2xl border transition-all ${theme === 'light' ? 'bg-accent-teal/10 border-accent-teal text-accent-teal' : 'bg-[#f8fafc] border-white/10 text-slate-500 hover:border-slate-300'}`}
+                    >
+                      <div className="w-16 h-12 bg-white rounded-lg mb-3 border border-slate-200 flex flex-col gap-1 p-2">
+                        <div className="w-full h-2 bg-slate-100 rounded"></div>
+                        <div className="w-3/4 h-2 bg-slate-100 rounded"></div>
+                      </div>
+                      <span className="text-sm font-bold">{language === 'en' ? 'Light Mode' : 'Chế độ Sáng'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4 mt-8 border-t border-white/5">
+                <button 
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="px-8 py-3 bg-accent-teal text-black rounded-xl font-bold flex items-center justify-center gap-2 hover:scale-105 transition-all text-xs uppercase tracking-widest shadow-lg shadow-accent-teal/20"
+                >
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  {language === 'en' ? 'Save Changes' : 'Lưu thay đổi'}
                 </button>
               </div>
             </motion.div>

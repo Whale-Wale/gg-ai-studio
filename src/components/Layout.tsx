@@ -11,10 +11,16 @@ import {
   MessageSquare, 
   Stethoscope,
   Globe,
-  Bot
+  Bot,
+  Server,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { collection, query, where, onSnapshot, updateDoc, doc, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { HealthAlert } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,12 +31,49 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, language, setLanguage }) => {
-  const { profile, signOut, isAdmin, isPro, isPatient } = useAuth();
+  const { profile, signOut, updateProfile } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [alerts, setAlerts] = React.useState<HealthAlert[]>([]);
+  const [showAlerts, setShowAlerts] = React.useState(false);
+
+  React.useEffect(() => {
+    if (profile?.role === 'User' && profile?.patientId) {
+      const q = query(
+        collection(db, 'alerts'),
+        where('patientId', '==', profile.patientId),
+        orderBy('timestamp', 'desc')
+      );
+      const unsub = onSnapshot(q, (snap) => {
+        setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() } as HealthAlert)));
+      }, (error) => console.error("Alerts snapshot error:", error.message));
+      return () => unsub();
+    } else if (profile?.role === 'Professional') {
+      const q = query(
+        collection(db, 'alerts'),
+        where('professionalId', '==', profile.uid),
+        orderBy('timestamp', 'desc')
+      );
+      const unsub = onSnapshot(q, (snap) => {
+        setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() } as HealthAlert)));
+      }, (error) => console.error("Alerts snapshot error:", error.message));
+      return () => unsub();
+    } else {
+      setAlerts([]);
+    }
+  }, [profile]);
+
+  const unreadAlerts = alerts.filter(a => a.status === 'New');
+
+  const markAlertsAsRead = async () => {
+    unreadAlerts.forEach(async (alertItem) => {
+      await updateDoc(doc(db, 'alerts', alertItem.id), { status: 'Read' });
+    });
+  };
 
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: language === 'en' ? 'Dashboard' : 'Bảng điều khiển', roles: ['PlatformAdmin', 'Professional', 'User'] },
     { id: 'admin-ai', icon: Bot, label: language === 'en' ? 'AI Assistant' : 'Trợ lý AI', roles: ['PlatformAdmin'] },
+    { id: 'system-config', icon: Server, label: language === 'en' ? 'AI & System' : 'AI & Hệ thống', roles: ['PlatformAdmin'] },
     { id: 'accounts', icon: Users, label: language === 'en' ? 'Accounts' : 'Tài khoản', roles: ['PlatformAdmin'] },
     { id: 'patients', icon: Users, label: language === 'en' ? 'Patients' : 'Bệnh nhân', roles: ['Professional'] },
     { id: 'health', icon: Activity, label: language === 'en' ? 'My Health' : 'Sức khỏe của tôi', roles: ['User'] },
@@ -98,6 +141,21 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, lang
             </div>
 
             <button 
+               onClick={() => {
+                 const newTheme = profile?.theme === 'light' ? 'dark' : 'light';
+                 if (profile?.uid) {
+                   updateProfile({ ...profile, theme: newTheme });
+                 }
+                 if (newTheme === 'light') document.body.classList.add('light-theme');
+                 else document.body.classList.remove('light-theme');
+               }}
+               className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-full transition-colors hidden sm:block"
+               title={language === 'en' ? 'Toggle Theme' : 'Đổi giao diện'}
+            >
+              {profile?.theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+            </button>
+
+            <button 
                onClick={() => setLanguage(language === 'en' ? 'vi' : 'en')}
                className="flex items-center gap-2 px-3 py-1.5 text-white/60 hover:text-white hover:bg-white/5 rounded-full transition-colors border border-transparent hover:border-white/10"
             >
@@ -105,10 +163,52 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, lang
               <span className="text-xs font-bold uppercase tracking-widest hidden sm:block">{language === 'en' ? 'ENG' : 'VIE'}</span>
             </button>
 
-            <button className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-full relative transition-colors">
-              <Bell size={20} />
-              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-dark-bg"></span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => {
+                  setShowAlerts(!showAlerts);
+                  if (!showAlerts) markAlertsAsRead();
+                }}
+                className="p-2 text-white/60 hover:text-white hover:bg-white/5 rounded-full relative transition-colors"
+                title={language === 'en' ? 'Notifications' : 'Thông báo'}
+              >
+                <Bell size={20} />
+                {unreadAlerts.length > 0 && (profile?.role === 'User' || profile?.role === 'Professional') && (
+                  <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-dark-bg"></span>
+                )}
+              </button>
+              
+              <AnimatePresence>
+                {showAlerts && (profile?.role === 'User' || profile?.role === 'Professional') && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-2 w-72 glass shadow-2xl rounded-2xl border border-white/10 overflow-hidden z-50"
+                  >
+                    <div className="p-4 border-b border-white/10 flex justify-between items-center">
+                      <h4 className="text-xs font-bold uppercase tracking-widest">{language === 'en' ? 'Notifications' : 'Thông báo'}</h4>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {alerts.length === 0 ? (
+                         <div className="p-4 text-center text-xs text-white/40">
+                           {language === 'en' ? 'No new notifications' : 'Không có thông báo mới'}
+                         </div>
+                      ) : (
+                        alerts.map(a => (
+                          <div key={a.id} className="p-4 border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <p className="text-xs">{a.message || (language === 'en' ? 'You have a new health alert' : 'Bạn có cảnh báo sức khỏe mới')}</p>
+                            <span className="text-[10px] text-white/40 mt-1 block">
+                              {new Date(a.timestamp?.toDate ? a.timestamp.toDate() : a.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             <div className="w-px h-8 bg-white/10 hidden md:block"></div>
 

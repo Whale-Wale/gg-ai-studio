@@ -22,6 +22,11 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Normal' | 'Critical'>('All');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   useEffect(() => {
     if (!profile?.tenantId) return;
@@ -30,14 +35,14 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     const uQuery = query(collection(db, 'users'), where('tenantId', '==', profile.tenantId), where('role', '==', 'User'));
     const unsubscribeUsers = onSnapshot(uQuery, (snapshot) => {
       setAvailableUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+      setUsersLoaded(true);
+    }, (error) => console.error("Users snapshot error:", error.message));
 
     const pQuery = query(collection(db, 'patients'), where('tenantId', '==', profile.tenantId));
     const unsubscribePatients = onSnapshot(pQuery, (snapshot) => {
-      const pts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patient))
-        .filter(p => p.status !== 'Discharged');
+      const pts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Patient));
       setPatients(pts);
-    });
+    }, (error) => console.error("Patients snapshot error:", error.message));
 
     const aQuery = query(
       collection(db, 'alerts'), 
@@ -48,7 +53,7 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     const unsubscribeAlerts = onSnapshot(aQuery, (snapshot) => {
       setAlerts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HealthAlert)));
       setLoading(false);
-    });
+    }, (error) => console.error("Alerts snapshot error:", error.message));
 
     return () => {
       unsubscribeUsers();
@@ -57,60 +62,49 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     };
   }, [profile]);
 
-  const generateMockAlert = async () => {
-    if (!profile?.tenantId || patients.length === 0) {
-      alert("No patients found. Please add a mock patient first.");
-      return;
-    }
-    const randomPatient = patients[Math.floor(Math.random() * patients.length)];
-    await addDoc(collection(db, 'alerts'), {
-      tenantId: profile.tenantId,
-      patientId: randomPatient.id,
-      patientName: randomPatient.name,
-      heartRate: 120 + Math.floor(Math.random() * 40),
-      status: 'New',
-      timestamp: new Date(),
-      isTest: true,
-      testCreatedAt: Date.now()
-    });
-  };
-
-  const linkUserAsPatient = async (user: any) => {
-    if (!profile?.tenantId) return;
+  useEffect(() => {
+    if (!profile?.tenantId || !usersLoaded) return;
     
-    // Check if patient already exists for this email
-    const existing = patients.find(p => p.email === user.email);
-    if (existing) {
-      alert(language === 'en' ? 'User is already a patient' : 'Người dùng này đã là bệnh nhân');
-      return;
-    }
+    // 1. Link actual users without a patient profile
+    const unlinkedUsers = availableUsers.filter(u => !patients.find(p => p.email === u.email));
+    
+    unlinkedUsers.forEach(async (user) => {
+      const pRef = await addDoc(collection(db, 'patients'), {
+        name: user.name || 'Unnamed',
+        email: user.email,
+        dob: 'Unknown',
+        tenantId: profile.tenantId,
+        status: 'Normal',
+        professionalId: profile.uid,
+        userId: user.id,
+        createdAt: new Date().toISOString()
+      });
 
-    const pRef = await addDoc(collection(db, 'patients'), {
-      name: user.name || 'Unnamed',
-      email: user.email,
-      dob: 'Unknown',
-      tenantId: profile.tenantId,
-      status: 'Normal',
-      professionalId: profile.uid,
-      userId: user.id,
-      createdAt: new Date().toISOString()
+      const now = new Date();
+      for (let i = 0; i < 7; i++) {
+         const date = new Date(now);
+         date.setDate(now.getDate() - (6 - i));
+         await addDoc(collection(db, 'patients', pRef.id, 'records'), {
+           timestamp: date,
+           heartRate: 70 + Math.floor(Math.random() * 20),
+           steps: 5000 + Math.floor(Math.random() * 5000),
+           sleepQuality: ['Good', 'Fair', 'Poor'][Math.floor(Math.random() * 3)],
+           isTest: true
+         });
+      }
+
+      const { doc: firestoreDoc, updateDoc } = await import('firebase/firestore');
+      await updateDoc(firestoreDoc(db, 'users', user.id), { patientId: pRef.id });
     });
 
-    const now = new Date();
-    for (let i = 0; i < 7; i++) {
-       const date = new Date(now);
-       date.setDate(now.getDate() - (6 - i));
-       await addDoc(collection(db, 'patients', pRef.id, 'records'), {
-         timestamp: date,
-         heartRate: 70 + Math.floor(Math.random() * 20),
-         steps: 5000 + Math.floor(Math.random() * 5000),
-         sleepQuality: ['Good', 'Fair', 'Poor'][Math.floor(Math.random() * 3)],
-         isTest: true
-       });
-    }
+    // 2. Remove "clone" patients that do not map to an existing valid user in availableUsers
+    const orphanedPatients = patients.filter(p => !availableUsers.find(u => u.email === p.email));
+    orphanedPatients.forEach(async (patient) => {
+      const { doc: firestoreDoc, deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(firestoreDoc(db, 'patients', patient.id));
+    });
 
-    setShowAddModal(false);
-  };
+  }, [availableUsers, patients, profile, usersLoaded]);
 
   const stats = [
     { label: language === 'en' ? 'Total Patients' : 'Tổng bệnh nhân', value: patients.length, icon: Users, color: 'text-accent-teal', bg: 'bg-accent-teal/10' },
@@ -126,20 +120,6 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
           <p className="text-[10px] opacity-40 uppercase tracking-widest mt-1">Tenant ID: {profile?.tenantId}</p>
         </div>
         <div className="flex gap-4 w-full md:w-auto">
-          <button 
-            onClick={generateMockAlert}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold border border-white/5 bg-white/5 hover:bg-white/10 text-xs uppercase tracking-widest transition-all"
-          >
-            <AlertTriangle size={18} />
-            {language === 'en' ? 'Test Alert' : 'Thử cảnh báo'}
-          </button>
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-accent-teal text-black px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all text-xs uppercase tracking-widest"
-          >
-            <Users size={20} />
-            {language === 'en' ? 'Add Patient' : 'Thêm bệnh nhân'}
-          </button>
         </div>
       </div>
 
@@ -167,19 +147,68 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="glass rounded-3xl overflow-hidden" id="patients">
-          <div className="p-6 border-b border-white/5 flex items-center justify-between">
-            <h2 className="text-xs uppercase tracking-widest font-bold opacity-60">{language === 'en' ? 'Patient Management' : 'Quản lý bệnh nhân'}</h2>
-            <div className="flex gap-2">
-              <button className="p-2 hover:bg-white/5 rounded-lg text-white/40"><Search size={18} /></button>
-              <button className="p-2 hover:bg-white/5 rounded-lg text-white/40"><Filter size={18} /></button>
+          <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-xs uppercase tracking-widest font-bold opacity-60 flex-shrink-0">{language === 'en' ? 'Patient Management' : 'Quản lý bệnh nhân'}</h2>
+            <div className="flex gap-2 w-full sm:w-auto relative">
+              <div className="flex-1 sm:w-48 relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={language === 'en' ? 'Search...' : 'Tìm kiếm...'}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-accent-teal transition-colors"
+                />
+              </div>
+              <div className="relative flex-shrink-0">
+                <button 
+                  onClick={() => setShowFilterMenu(!showFilterMenu)}
+                  className={`p-2 rounded-xl border transition-colors ${statusFilter !== 'All' ? 'bg-accent-teal/20 border-accent-teal/50 text-accent-teal' : 'bg-white/5 border-white/10 text-white/40 hover:text-white'}`}
+                >
+                  <Filter size={16} />
+                </button>
+                {showFilterMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-40 glass rounded-xl border border-white/10 shadow-xl overflow-hidden z-20">
+                    <button 
+                      onClick={() => { setStatusFilter('All'); setShowFilterMenu(false); }}
+                      className={`w-full text-left px-4 py-2 text-xs font-bold uppercase tracking-widest ${statusFilter === 'All' ? 'bg-accent-teal/20 text-accent-teal' : 'hover:bg-white/5'}`}
+                    >
+                      {language === 'en' ? 'All Status' : 'Tất cả'}
+                    </button>
+                    <button 
+                      onClick={() => { setStatusFilter('Normal'); setShowFilterMenu(false); }}
+                      className={`w-full text-left px-4 py-2 text-xs font-bold uppercase tracking-widest ${statusFilter === 'Normal' ? 'bg-emerald-500/20 text-emerald-500' : 'hover:bg-white/5'}`}
+                    >
+                      {language === 'en' ? 'Normal' : 'Bình thường'}
+                    </button>
+                    <button 
+                      onClick={() => { setStatusFilter('Critical'); setShowFilterMenu(false); }}
+                      className={`w-full text-left px-4 py-2 text-xs font-bold uppercase tracking-widest ${statusFilter === 'Critical' ? 'bg-rose-500/20 text-rose-500' : 'hover:bg-white/5'}`}
+                    >
+                      {language === 'en' ? 'Critical' : 'Nguy kịch'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="divide-y divide-white/5">
-            {patients.length === 0 ? (
-              <div className="p-8 text-center text-white/30 text-xs tracking-widest uppercase italic">
-                {loading ? '...' : (language === 'en' ? 'No patients found' : 'Không có bệnh nhân')}
-              </div>
-            ) : patients.map((patient) => (
+            {(() => {
+              const filteredPatients = patients.filter(p => {
+                const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (p.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+                const matchesStatus = statusFilter === 'All' ? true : p.status === statusFilter;
+                return matchesSearch && matchesStatus;
+              });
+
+              if (filteredPatients.length === 0) {
+                return (
+                  <div className="p-8 text-center text-white/30 text-xs tracking-widest uppercase italic">
+                    {loading ? '...' : (language === 'en' ? 'No patients found' : 'Không có bệnh nhân')}
+                  </div>
+                );
+              }
+
+              return filteredPatients.map((patient) => (
               <div 
                 key={patient.id} 
                 onClick={() => onSelectPatient(patient.id)}
@@ -206,7 +235,8 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
                   </div>
                 </div>
               </div>
-            ))}
+            ));
+            })()}
           </div>
         </div>
 
@@ -251,58 +281,6 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
           </div>
         </div>
       </div>
-
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="glass p-8 rounded-[32px] w-full max-w-lg shadow-2xl border border-accent-teal/20">
-            <h3 className="text-sm font-bold uppercase tracking-[0.2em] mb-4 text-accent-teal">
-              {language === 'en' ? 'Link User as Patient' : 'Liên kết người dùng thành bệnh nhân'}
-            </h3>
-            <p className="text-xs uppercase tracking-widest opacity-50 mb-6">
-              {language === 'en' ? 'Select an existing User account to monitor.' : 'Chọn tài khoản Bệnh nhân có sẵn để theo dõi.'}
-            </p>
-            
-            <div className="max-h-[50vh] overflow-y-auto space-y-3 mb-8 pr-2">
-              {availableUsers.length === 0 ? (
-                <div className="p-4 text-center text-white/30 text-xs tracking-widest uppercase italic">
-                  {language === 'en' ? 'No users available' : 'Không có người dùng nào'}
-                </div>
-              ) : availableUsers.map(user => {
-                const isAlreadyPatient = patients.some(p => p.email === user.email);
-                return (
-                  <div key={user.id} className="p-4 glass rounded-2xl border border-white/5 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm">{user.name || 'Unnamed'}</h4>
-                      <p className="text-[10px] opacity-60 uppercase">{user.email}</p>
-                    </div>
-                    {isAlreadyPatient ? (
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">
-                        {language === 'en' ? 'Linked' : 'Đã liên kết'}
-                      </span>
-                    ) : (
-                      <button 
-                        onClick={() => linkUserAsPatient(user)}
-                        className="px-4 py-2 bg-white/10 hover:bg-accent-teal hover:text-black rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
-                      >
-                        {language === 'en' ? 'Select' : 'Chọn'}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-end">
-              <button 
-                onClick={() => setShowAddModal(false)}
-                className="px-6 py-3 border border-white/10 hover:bg-white/5 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all"
-              >
-                {language === 'en' ? 'Close' : 'Đóng'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

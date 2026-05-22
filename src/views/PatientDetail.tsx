@@ -21,7 +21,8 @@ import {
   ClipboardList,
   Watch,
   Wind,
-  Zap
+  Zap,
+  Bell
 } from 'lucide-react';
 import { 
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line
@@ -137,7 +138,17 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
     }
     setDialogState({ isOpen: true, type: 'info', message: language === 'en' ? 'Analyzing...' : 'Đang phân tích...' });
     try {
-      const result = await generateHealthSummary(records.slice(-10), language);
+      let systemPrompt = undefined;
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const docSnap = await getDoc(doc(db, 'settings', 'ai_config'));
+        if (docSnap.exists() && docSnap.data().prompt) {
+          systemPrompt = docSnap.data().prompt;
+        }
+      } catch (e) {
+        console.error("Failed to fetch system prompt config", e);
+      }
+      const result = await generateHealthSummary(records.slice(-10), language, systemPrompt);
       await addDoc(collection(db, 'patients', patientId, 'summaries'), {
         ...result,
         patientId,
@@ -152,19 +163,35 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
     }
   };
 
-  const dischargePatient = () => {
-    setDialogState({ isOpen: true, type: 'discharge' });
-  };
-
-  const confirmDischarge = async () => {
+  const sendAlertToPatient = async () => {
     if (!patient) return;
+    setDialogState({ isOpen: true, type: 'info', message: language === 'en' ? 'Sending alert...' : 'Đang gửi cảnh báo...' });
     try {
-      await updateDoc(doc(db, 'patients', patientId), { status: 'Discharged' });
-      setDialogState({ isOpen: false, type: null });
-      onBack();
+      await addDoc(collection(db, 'alerts'), {
+        patientId: patient.id,
+        patientName: patient.name,
+        tenantId: patient.tenantId,
+        heartRate: records[records.length - 1]?.heartRate || 0,
+        status: 'New',
+        timestamp: serverTimestamp(),
+        type: 'doctor_alert',
+        message: language === 'en' ? 'Your doctor has issued a health warning. Please contact the clinic immediately.' : 'Bác sĩ của bạn đã phát cảnh báo sức khỏe. Hãy liên hệ với phòng khám ngay.'
+      });
+
+      await addDoc(collection(db, 'alerts'), {
+        professionalId: patient.professionalId,
+        patientName: patient.name,
+        tenantId: patient.tenantId,
+        status: 'New',
+        timestamp: serverTimestamp(),
+        type: 'system_notification',
+        message: language === 'en' ? `You have sent a health warning to ${patient.name}.` : `Bạn đã gửi cảnh báo sức khỏe cho bệnh nhân ${patient.name}.`
+      });
+
+      setDialogState({ isOpen: true, type: 'info', message: language === 'en' ? 'Alert sent successfully!' : 'Đã gửi cảnh báo thành công!' });
     } catch (e) {
       console.error(e);
-      setDialogState({ isOpen: true, type: 'error', message: 'Discharge failed: ' + (e as Error).message });
+      setDialogState({ isOpen: true, type: 'error', message: 'Failed to send alert: ' + (e as Error).message });
     }
   };
 
@@ -219,11 +246,11 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
             {language === 'en' ? 'AI Analysis' : 'Phân tích AI'}
           </button>
           <button 
-            onClick={dischargePatient}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-500 px-4 md:px-6 py-3 rounded-xl font-bold hover:bg-emerald-500/20 transition-all border border-emerald-500/20 text-[10px] md:text-xs uppercase tracking-widest whitespace-nowrap"
+            onClick={sendAlertToPatient}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rose-500/10 text-rose-500 px-4 md:px-6 py-3 rounded-xl font-bold hover:bg-rose-500/20 transition-all border border-rose-500/20 text-[10px] md:text-xs uppercase tracking-widest whitespace-nowrap"
           >
-            <UserCheck size={18} />
-            {language === 'en' ? 'Discharge' : 'Xuất viện'}
+            <Bell size={18} />
+            {language === 'en' ? 'Send Alert' : 'Phát cảnh báo'}
           </button>
           <button 
             onClick={exportPDF}
@@ -469,7 +496,6 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass p-6 md:p-8 rounded-[32px] w-full max-w-md border border-white/10 shadow-2xl">
             <h2 className="text-xl font-bold mb-4">
-              {dialogState.type === 'discharge' && (language === 'en' ? 'Confirm Discharge' : 'Xác nhận xuất viện')}
               {dialogState.type === 'note' && (language === 'en' ? 'Add Clinical Note' : 'Thêm ghi chú lâm sàng')}
               {dialogState.type === 'info' && (language === 'en' ? 'Success' : 'Thành công')}
               {dialogState.type === 'error' && (language === 'en' ? 'Error' : 'Lỗi')}
@@ -478,12 +504,6 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
             {(dialogState.type === 'info' || dialogState.type === 'error') && (
               <p className="text-sm opacity-80 mb-6 font-light">
                 {dialogState.message}
-              </p>
-            )}
-            
-            {dialogState.type === 'discharge' && (
-              <p className="text-sm opacity-80 mb-6 font-light">
-                {language === 'en' ? 'Are you sure you want to discharge this patient? They will be removed from the active list.' : 'Bạn có chắc chắn muốn cho bệnh nhân này xuất viện? Bệnh nhân sẽ bị xóa khỏi danh sách.'}
               </p>
             )}
 
@@ -507,12 +527,11 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
               )}
               <button 
                 onClick={() => {
-                  if (dialogState.type === 'discharge') confirmDischarge();
                   if (dialogState.type === 'note') confirmAddNote();
                   if (dialogState.type === 'info' || dialogState.type === 'error') setDialogState({ isOpen: false, type: null });
                 }}
                 className={`flex-1 py-3 rounded-xl font-bold text-sm transition-colors ${
-                  dialogState.type === 'discharge' || dialogState.type === 'error' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-accent-teal hover:bg-accent-teal/90 text-slate-900'
+                  dialogState.type === 'error' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-accent-teal hover:bg-accent-teal/90 text-slate-900'
                 }`}
               >
                 {dialogState.type === 'info' || dialogState.type === 'error' 

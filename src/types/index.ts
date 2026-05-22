@@ -20,6 +20,10 @@ export interface UserProfile {
   tenantId: string;
   patientId?: string;
   avatarUrl?: string;
+  dob?: string;
+  phone?: string;
+  gender?: string;
+  theme?: string;
 }
 
 export interface Patient {
@@ -50,6 +54,8 @@ export interface HealthAlert {
   heartRate: number;
   timestamp: any;
   status: 'New' | 'Read';
+  type?: string;
+  message?: string;
 }
 
 export interface AISummary {

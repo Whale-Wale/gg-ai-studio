@@ -31,7 +31,7 @@ const Feedback: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
       }
 
       setUsers(contacts);
-    });
+    }, (error) => console.error("Users snapshot error:", error.message));
 
     return () => unsubscribe();
   }, [profile]);
@@ -59,8 +59,7 @@ const Feedback: React.FC<{ language: 'en' | 'vi' }> = ({ language }) => {
       });
       setMessages(data);
     }, (error: any) => {
-      console.error("Feedback snapshot error: ", error);
-      alert("Chat error: " + error.message);
+      console.error("Feedback snapshot error: ", error.message);
     });
 
     return () => unsubscribe();

@@ -24,71 +24,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
         const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
         
-        if (docSnap.exists()) {
-          const data = docSnap.data() as UserProfile;
-          let shouldUpdate = false;
-          
-          if (user.email === 'admin@healthchain.com' && data.role !== 'PlatformAdmin') {
-            data.role = 'PlatformAdmin';
-            data.tenantId = 'system';
-            shouldUpdate = true;
-          } else if (user.email === 'clinic@healthchain.com' && data.role !== 'Professional') {
-            data.role = 'Professional';
-            shouldUpdate = true;
-          }
-          
-          if (shouldUpdate) {
-            await setDoc(docRef, { role: data.role, tenantId: data.tenantId }, { merge: true });
-          }
-          
-          setProfile(data);
-        } else {
-          // New user logic - for demo, we assign a default role if none exists
-          let targetRole = 'User';
-          let targetTenant = 'demo-tenant';
-          if (user.email === 'admin@healthchain.com') {
-             targetRole = 'PlatformAdmin';
-             targetTenant = 'system';
-          } else if (user.email === 'clinic@healthchain.com') {
-             targetRole = 'Professional';
-          }
+        unsubscribeSnapshot = (await import('firebase/firestore')).onSnapshot(docRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as UserProfile;
+            let shouldUpdate = false;
+            
+            if (user.email === 'admin@healthchain.com' && data.role !== 'PlatformAdmin') {
+              data.role = 'PlatformAdmin';
+              data.tenantId = 'system';
+              shouldUpdate = true;
+            } else if (user.email === 'clinic@healthchain.com' && data.role !== 'Professional') {
+              data.role = 'Professional';
+              shouldUpdate = true;
+            }
+            
+            if (shouldUpdate) {
+              await setDoc(docRef, { role: data.role, tenantId: data.tenantId }, { merge: true });
+            }
+            
+            setProfile(data);
+          } else {
+            // New user logic
+            let targetRole = 'User';
+            let targetTenant = 'demo-tenant';
+            if (user.email === 'admin@healthchain.com') {
+               targetRole = 'PlatformAdmin';
+               targetTenant = 'system';
+            } else if (user.email === 'clinic@healthchain.com') {
+               targetRole = 'Professional';
+            }
 
-          let patientIdStr = undefined;
-          if (targetRole === 'User') {
-            const { addDoc, collection } = await import('firebase/firestore');
-             const pRef = await addDoc(collection(db, 'patients'), {
-               name: user.displayName || user.email?.split('@')[0] || 'Patient',
-               tenantId: targetTenant,
-               status: 'Normal',
-               createdAt: new Date()
-             });
-             patientIdStr = pRef.id;
-          }
+            let patientIdStr = undefined;
+            if (targetRole === 'User') {
+              const { addDoc, collection } = await import('firebase/firestore');
+               const pRef = await addDoc(collection(db, 'patients'), {
+                 name: user.displayName || user.email?.split('@')[0] || 'Patient',
+                 tenantId: targetTenant,
+                 status: 'Normal',
+                 createdAt: new Date()
+               });
+               patientIdStr = pRef.id;
+            }
 
-          const newProfile: UserProfile = {
-            uid: user.uid,
-            email: user.email || '',
-            name: user.displayName || user.email?.split('@')[0] || 'User',
-            role: targetRole as any,
-            tenantId: targetTenant,
-            patientId: patientIdStr,
-          };
-          await setDoc(docRef, newProfile);
-          setProfile(newProfile);
-        }
+            const newProfile: UserProfile = {
+              uid: user.uid,
+              email: user.email || '',
+              name: user.displayName || user.email?.split('@')[0] || 'User',
+              role: targetRole as any,
+              tenantId: targetTenant,
+              patientId: patientIdStr,
+            };
+            await setDoc(docRef, newProfile);
+            setProfile(newProfile);
+          }
+        });
       } else {
+        if (unsubscribeSnapshot) {
+          unsubscribeSnapshot();
+        }
         setProfile(null);
       }
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   const signOut = () => auth.signOut();
@@ -97,6 +108,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     const docRef = doc(db, 'users', user.uid);
     await setDoc(docRef, data, { merge: true });
+
+    if (profile?.role === 'User' && profile?.patientId) {
+      const patientData: any = {};
+      if (data.name !== undefined) patientData.name = data.name;
+      if (data.email !== undefined) patientData.email = data.email;
+      if (data.tenantId !== undefined) patientData.tenantId = data.tenantId;
+      if (data.dob !== undefined) patientData.dob = data.dob;
+      if (data.gender !== undefined) patientData.gender = data.gender;
+      
+      if (Object.keys(patientData).length > 0) {
+        const patientRef = doc(db, 'patients', profile.patientId);
+        await setDoc(patientRef, patientData, { merge: true });
+      }
+    }
+
     setProfile(prev => prev ? { ...prev, ...data } : null);
   };
 

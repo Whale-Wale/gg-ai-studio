@@ -11,6 +11,7 @@ import PatientDetail from './views/PatientDetail';
 import Settings from './views/Settings';
 import UserManagement from './views/UserManagement';
 import AdminAIAssistant from './views/AdminAIAssistant';
+import AdminSystemConfig from './views/AdminSystemConfig';
 import Feedback from './views/Feedback';
 import { useTestCleanup } from './hooks/useTestCleanup';
 
@@ -30,6 +31,14 @@ const AppContent = () => {
   };
 
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile?.theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+  }, [profile?.theme]);
 
   useEffect(() => {
     if (activeTab === 'settings') return;
@@ -87,6 +96,10 @@ const AppContent = () => {
 
       case 'admin-ai':
         if (profile.role === 'PlatformAdmin') return <AdminAIAssistant language={language} />;
+        return <Navigate to="/" replace />;
+
+      case 'system-config':
+        if (profile.role === 'PlatformAdmin') return <AdminSystemConfig language={language} />;
         return <Navigate to="/" replace />;
 
       case 'tenants':
