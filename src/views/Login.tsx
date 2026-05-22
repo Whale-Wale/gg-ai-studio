@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import { auth, db } from '../lib/firebase';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { Stethoscope, Globe, Shield, Smartphone, Zap, Mail, Lock } from 'lucide-react';
 
 const Login: React.FC<{ language: 'en' | 'vi', setLanguage: (l: 'en' | 'vi') => void }> = ({ language, setLanguage }) => {
   const [loading, setLoading] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authMethod, setAuthMethod] = useState<'google' | 'email'>('email');
 
   const processUser = async (user: any) => {
     const docRef = doc(db, 'users', user.uid);
@@ -76,20 +74,6 @@ const Login: React.FC<{ language: 'en' | 'vi', setLanguage: (l: 'en' | 'vi') => 
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      await processUser(result.user);
-    } catch (error) {
-      console.error(error);
-      alert(language === 'en' ? 'Google Login failed. Make sure it is enabled.' : 'Đăng nhập Google thất bại');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleEmailAuth = async () => {
     if (!email || !password) {
       alert(language === 'en' ? 'Please enter email and password' : 'Vui lòng nhập email và mật khẩu');
@@ -97,12 +81,7 @@ const Login: React.FC<{ language: 'en' | 'vi', setLanguage: (l: 'en' | 'vi') => 
     }
     setLoading(true);
     try {
-      let result;
-      if (authMode === 'register') {
-        result = await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        result = await signInWithEmailAndPassword(auth, email, password);
-      }
+      const result = await signInWithEmailAndPassword(auth, email, password);
       await processUser(result.user);
     } catch (error: any) {
       console.error(error);
@@ -117,7 +96,7 @@ const Login: React.FC<{ language: 'en' | 'vi', setLanguage: (l: 'en' | 'vi') => 
   };
 
   return (
-    <div className="min-h-screen bg-dark-bg flex flex-col md:flex-row relative overflow-hidden text-[#e5e5e5]">
+    <div className="min-h-screen bg-dark-bg flex flex-col md:flex-row relative overflow-hidden">
       {/* Abstract Background Accents */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-teal/10 blur-[120px] rounded-full" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
@@ -174,9 +153,7 @@ const Login: React.FC<{ language: 'en' | 'vi', setLanguage: (l: 'en' | 'vi') => 
 
             <div className="space-y-6">
               <div className="space-y-4">
-                {authMethod === 'email' && (
-                  <>
-                    <div className="space-y-2">
+                <div className="space-y-2">
                       <label className="text-[10px] font-bold opacity-40 uppercase tracking-widest block mb-2">
                         {language === 'en' ? 'Email' : 'Email'}
                       </label>
@@ -207,79 +184,19 @@ const Login: React.FC<{ language: 'en' | 'vi', setLanguage: (l: 'en' | 'vi') => 
                         />
                       </div>
                     </div>
-                  </>
-                )}
               </div>
 
-              {authMethod === 'email' ? (
-                <>
-                  <button
-                    onClick={handleEmailAuth}
-                    disabled={loading}
-                    className="group w-full bg-accent-teal text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-accent-teal/20 text-[10px] uppercase tracking-widest mt-6"
-                  >
-                    {loading ? (
-                      <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      authMode === 'login' ? (language === 'en' ? 'Sign In' : 'Đăng nhập') : (language === 'en' ? 'Register' : 'Đăng ký')
-                    )}
-                  </button>
-                  <p className="text-center text-xs opacity-60">
-                    {authMode === 'login' 
-                      ? (language === 'en' ? 'Don\'t have an account? ' : 'Chưa có tài khoản? ')
-                      : (language === 'en' ? 'Already have an account? ' : 'Đã có tài khoản? ')}
-                    <button 
-                      onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-                      className="text-accent-teal font-bold hover:underline"
-                    >
-                      {authMode === 'login' 
-                        ? (language === 'en' ? 'Sign Up' : 'Đăng ký')
-                        : (language === 'en' ? 'Sign In' : 'Đăng nhập')}
-                    </button>
-                  </p>
-                  <div className="flex items-center gap-4 py-2">
-                    <div className="flex-1 border-b border-white/10"></div>
-                    <span className="text-[10px] uppercase tracking-widest opacity-40">OR</span>
-                    <div className="flex-1 border-b border-white/10"></div>
-                  </div>
-                  <button
-                    onClick={() => setAuthMethod('google')}
-                    className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all text-[10px] border border-white/10 uppercase tracking-widest"
-                  >
-                    <img src="https://www.google.com/favicon.ico" className="w-4 h-4 grayscale opacity-80" alt="Google" />
-                    Google Login
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={handleGoogleLogin}
-                    disabled={loading}
-                    className="group w-full bg-white text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-white/5 text-[10px] uppercase tracking-widest mt-6"
-                  >
-                    {loading ? (
-                      <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                        {language === 'en' ? 'Continue with Google' : 'Tiếp tục với Google'}
-                      </>
-                    )}
-                  </button>
-                  <div className="flex items-center gap-4 py-2">
-                    <div className="flex-1 border-b border-white/10"></div>
-                    <span className="text-[10px] uppercase tracking-widest opacity-40">OR</span>
-                    <div className="flex-1 border-b border-white/10"></div>
-                  </div>
-                  <button
-                    onClick={() => setAuthMethod('email')}
-                    className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all text-[10px] border border-white/10 uppercase tracking-widest"
-                  >
-                    <Mail size={16} className="opacity-80" />
-                    {language === 'en' ? 'Use Email / Password' : 'Dùng Email / Mật khẩu'}
-                  </button>
-                </>
-              )}
+              <button
+                onClick={handleEmailAuth}
+                disabled={loading}
+                className="group w-full bg-accent-teal text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-accent-teal/20 text-[10px] uppercase tracking-widest mt-6"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  language === 'en' ? 'Sign In' : 'Đăng nhập'
+                )}
+              </button>
               
               <p className="text-center text-[10px] text-white/20 uppercase tracking-widest mt-10">
                 {language === 'en' 

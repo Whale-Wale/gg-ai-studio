@@ -437,7 +437,7 @@ const PatientDetail: React.FC<PatientDetailProps> = ({ patientId, onBack, langua
                </div>
             ) : notes.map(note => (
               <div key={note.id} className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                <p className="text-xs font-light tracking-wide opacity-80 leading-relaxed text-[#e5e5e5]">
+                <p className="text-xs font-light tracking-wide opacity-80 leading-relaxed">
                   {note.text}
                 </p>
                 <div className="text-[10px] uppercase tracking-widest opacity-40 mt-3 pt-3 border-t border-white/5 flex justify-end">

@@ -87,7 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, lang
   const filteredMenu = menuItems.filter(item => profile && item.roles.includes(profile.role));
 
   return (
-    <div className="flex h-screen bg-dark-bg text-[#e5e5e5] overflow-hidden">
+    <div className="flex h-screen bg-dark-bg overflow-hidden">
       {/* Desktop Sidebar */}
       <motion.aside 
         initial={{ x: -250 }}

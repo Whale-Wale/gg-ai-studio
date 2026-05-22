@@ -20,36 +20,39 @@
   }
   
   body.light-theme {
-    @apply text-slate-800;
-    background: radial-gradient(circle at top center, #f8fafc 0%, #e2e8f0 100%);
+    @apply text-slate-900;
+    background: radial-gradient(circle at top center, #e2e8f0 0%, #cbd5e1 100%);
   }
 
   body.light-theme h1, body.light-theme h2, body.light-theme h3, body.light-theme h4, body.light-theme h5, body.light-theme h6 {
-    @apply text-slate-900;
+    @apply text-black;
   }
 
-  body.light-theme .text-white { color: #0f172a !important; }
-  body.light-theme .text-white\/10 { color: rgba(15, 23, 42, 0.1) !important; }
-  body.light-theme .text-white\/20 { color: rgba(15, 23, 42, 0.2) !important; }
-  body.light-theme .text-white\/30 { color: rgba(15, 23, 42, 0.3) !important; }
-  body.light-theme .text-white\/40 { color: rgba(15, 23, 42, 0.4) !important; }
-  body.light-theme .text-white\/50 { color: rgba(15, 23, 42, 0.5) !important; }
-  body.light-theme .text-white\/60 { color: rgba(15, 23, 42, 0.6) !important; }
-  
-  body.light-theme .bg-white\/5 { background-color: rgba(0, 0, 0, 0.05) !important; }
-  body.light-theme .bg-white\/10 { background-color: rgba(0, 0, 0, 0.1) !important; }
-  body.light-theme .bg-white\/20 { background-color: rgba(0, 0, 0, 0.2) !important; }
+  body.light-theme .text-white { color: #000000 !important; }
+  body.light-theme .text-white\/10 { color: rgba(0, 0, 0, 0.2) !important; } /* Darkened for visibility */
+  body.light-theme .text-white\/20 { color: rgba(0, 0, 0, 0.4) !important; }
+  body.light-theme .text-white\/30 { color: rgba(0, 0, 0, 0.5) !important; }
+  body.light-theme .text-white\/40 { color: rgba(0, 0, 0, 0.6) !important; }
+  body.light-theme .text-white\/50 { color: rgba(0, 0, 0, 0.7) !important; }
+  body.light-theme .text-white\/60 { color: rgba(0, 0, 0, 0.8) !important; }
 
-  body.light-theme .border-white\/5 { border-color: rgba(0, 0, 0, 0.05) !important; border-bottom-color: rgba(0,0,0,0.05) !important; border-top-color: rgba(0,0,0,0.05) !important; }
-  body.light-theme .border-white\/10 { border-color: rgba(0, 0, 0, 0.1) !important; border-bottom-color: rgba(0,0,0,0.1) !important; border-top-color: rgba(0,0,0,0.1) !important;}
+  body.light-theme .placeholder\:text-white\/30::placeholder { color: rgba(0, 0, 0, 0.5) !important; }
+  body.light-theme .placeholder\:text-white\/40::placeholder { color: rgba(0, 0, 0, 0.6) !important; }
+  body.light-theme .placeholder\:text-white\/50::placeholder { color: rgba(0, 0, 0, 0.7) !important; }
+  
+  body.light-theme .bg-white\/5 { background-color: rgba(255, 255, 255, 0.8) !important; }
+  body.light-theme .bg-white\/10 { background-color: #ffffff !important; }
+  body.light-theme .bg-white\/20 { background-color: #ffffff !important; }
+
+  body.light-theme .border-white\/5 { border-color: rgba(0, 0, 0, 0.1) !important; border-bottom-color: rgba(0,0,0,0.1) !important; border-top-color: rgba(0,0,0,0.1) !important; }
+  body.light-theme .border-white\/10 { border-color: rgba(0, 0, 0, 0.15) !important; border-bottom-color: rgba(0,0,0,0.15) !important; border-top-color: rgba(0,0,0,0.15) !important;}
   body.light-theme .border-white\/20 { border-color: rgba(0, 0, 0, 0.2) !important; }
 
   body.light-theme .text-black { color: #ffffff !important; }
-  body.light-theme .bg-black { background-color: #ffffff !important; }
-  body.light-theme .bg-dark-bg { background-color: #f8fafc !important; }
-  body.light-theme .bg-black\/20 { background-color: rgba(255, 255, 255, 0.8) !important; }
-  body.light-theme .bg-black\/80 { background-color: rgba(255, 255, 255, 0.8) !important; }
-
+  body.light-theme .bg-black { background-color: #0f172a !important; }
+  body.light-theme .bg-dark-bg { background-color: #ffffff !important; }
+  body.light-theme .bg-black\/20 { background-color: rgba(15, 23, 42, 0.05) !important; }
+  body.light-theme .bg-black\/80 { background-color: rgba(15, 23, 42, 0.8) !important; }
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight text-white;
   }
@@ -63,9 +66,9 @@
 }
 
 body.light-theme .glass {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15);
 }
 
 .sidebar-link-active {

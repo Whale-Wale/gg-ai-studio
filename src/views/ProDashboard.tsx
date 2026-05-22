@@ -62,6 +62,8 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     };
   }, [profile]);
 
+  const addingUsersRef = React.useRef(new Set<string>());
+
   useEffect(() => {
     if (!profile?.tenantId || !usersLoaded) return;
     
@@ -69,39 +71,53 @@ const ProDashboard: React.FC<{ language: 'en' | 'vi', onSelectPatient: (id: stri
     const unlinkedUsers = availableUsers.filter(u => !patients.find(p => p.email === u.email));
     
     unlinkedUsers.forEach(async (user) => {
-      const pRef = await addDoc(collection(db, 'patients'), {
-        name: user.name || 'Unnamed',
-        email: user.email,
-        dob: 'Unknown',
-        tenantId: profile.tenantId,
-        status: 'Normal',
-        professionalId: profile.uid,
-        userId: user.id,
-        createdAt: new Date().toISOString()
-      });
+      if (addingUsersRef.current.has(user.id)) return;
+      addingUsersRef.current.add(user.id);
+      try {
+        const pRef = await addDoc(collection(db, 'patients'), {
+          name: user.name || 'Unnamed',
+          email: user.email,
+          dob: 'Unknown',
+          tenantId: profile.tenantId,
+          status: 'Normal',
+          professionalId: profile.uid,
+          userId: user.id,
+          createdAt: new Date().toISOString()
+        });
 
-      const now = new Date();
-      for (let i = 0; i < 7; i++) {
-         const date = new Date(now);
-         date.setDate(now.getDate() - (6 - i));
-         await addDoc(collection(db, 'patients', pRef.id, 'records'), {
-           timestamp: date,
-           heartRate: 70 + Math.floor(Math.random() * 20),
-           steps: 5000 + Math.floor(Math.random() * 5000),
-           sleepQuality: ['Good', 'Fair', 'Poor'][Math.floor(Math.random() * 3)],
-           isTest: true
-         });
+        const now = new Date();
+        for (let i = 0; i < 7; i++) {
+           const date = new Date(now);
+           date.setDate(now.getDate() - (6 - i));
+           await addDoc(collection(db, 'patients', pRef.id, 'records'), {
+             timestamp: date,
+             heartRate: 70 + Math.floor(Math.random() * 20),
+             steps: 5000 + Math.floor(Math.random() * 5000),
+             sleepQuality: ['Good', 'Fair', 'Poor'][Math.floor(Math.random() * 3)],
+             isTest: true
+           });
+        }
+
+        const { doc: firestoreDoc, updateDoc } = await import('firebase/firestore');
+        await updateDoc(firestoreDoc(db, 'users', user.id), { patientId: pRef.id });
+      } catch (e) {
+        console.error("Error linking user to patient:", e);
+        addingUsersRef.current.delete(user.id);
       }
-
-      const { doc: firestoreDoc, updateDoc } = await import('firebase/firestore');
-      await updateDoc(firestoreDoc(db, 'users', user.id), { patientId: pRef.id });
     });
 
     // 2. Remove "clone" patients that do not map to an existing valid user in availableUsers
     const orphanedPatients = patients.filter(p => !availableUsers.find(u => u.email === p.email));
     orphanedPatients.forEach(async (patient) => {
-      const { doc: firestoreDoc, deleteDoc } = await import('firebase/firestore');
-      await deleteDoc(firestoreDoc(db, 'patients', patient.id));
+      if (addingUsersRef.current.has(patient.id)) return;
+      addingUsersRef.current.add(patient.id);
+      try {
+        const { doc: firestoreDoc, deleteDoc } = await import('firebase/firestore');
+        await deleteDoc(firestoreDoc(db, 'patients', patient.id));
+      } catch (e) {
+        console.error("Error deleting cloned patient:", e);
+        addingUsersRef.current.delete(patient.id);
+      }
     });
 
   }, [availableUsers, patients, profile, usersLoaded]);
